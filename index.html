@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sports Pulse - Real-Time Upstream Portal</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              dark: '#0b0f19',
+              card: '#151c2e',
+              border: '#232d45',
+              accent: '#10b981',
+              blue: '#3b82f6',
+              live: '#ef4444',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { background-color: #0b0f19; color: #f3f4f6; font-family: 'Inter', sans-serif; }
+    .glass-card { background: rgba(21, 28, 46, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.08); }
+    .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #0b0f19; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #232d45; border-radius: 4px; }
+    @keyframes pulse-fast { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+    .animate-pulse-fast { animation: pulse-fast 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col custom-scrollbar">
+
+  <!-- TOP TICKER -->
+  <div class="bg-slate-950 border-b border-brand-border text-xs py-2 px-4 overflow-x-auto whitespace-nowrap custom-scrollbar flex items-center space-x-6">
+    <div class="flex items-center space-x-2 text-brand-live font-bold tracking-wider uppercase shrink-0">
+      <span class="w-2.5 h-2.5 rounded-full bg-brand-live animate-pulse-fast"></span>
+      <span>Live Scoreboard</span>
+    </div>
+    <div id="liveTicker" class="flex items-center space-x-6 text-slate-300 shrink-0">
+      <span class="text-slate-500 italic">Connecting to upstream live feed...</span>
+    </div>
+  </div>
+
+  <!-- HEADER -->
+  <header class="bg-slate-900/90 backdrop-blur-md border-b border-brand-border sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-blue-600 flex items-center justify-center text-white shadow-lg">
+          <i class="fa-solid fa-bolt text-lg"></i>
+        </div>
+        <div>
+          <span class="font-extrabold text-lg sm:text-xl tracking-tight text-white">SPORTS<span class="text-emerald-400">PULSE</span></span>
+          <span id="dataModeBadge" class="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 ml-2">LIVE UPSTREAM</span>
+        </div>
+      </div>
+
+      <div class="flex items-center space-x-3">
+        <button onclick="fetchRealUpstreamData()" class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-brand-blue hover:bg-blue-600 text-white transition flex items-center space-x-1.5">
+          <i class="fa-solid fa-rotate"></i>
+          <span>Fetch Real Matches</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN CONTAINER -->
+  <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+    <!-- CONNECTION STATUS BANNER -->
+    <div id="statusBanner" class="bg-slate-900 p-4 rounded-xl border border-brand-border flex items-center justify-between text-xs">
+      <div class="flex items-center space-x-3">
+        <span id="statusIndicator" class="w-3 h-3 rounded-full bg-amber-400 animate-pulse"></span>
+        <div>
+          <span id="statusTitle" class="font-bold text-white block">Initiating API Connection</span>
+          <span id="statusSub" class="text-slate-400">Targeting https://h5-sport-api.aoneroom.com/wefeed-h5api-bff/live/match-list-v5</span>
+        </div>
+      </div>
+      <span id="matchCountText" class="font-mono text-emerald-400 font-bold">0 Events Loaded</span>
+    </div>
+
+    <!-- MATCHES GRID -->
+    <div class="space-y-4">
+      <h2 class="text-xl font-bold text-white">Active Fixtures</h2>
+      <div id="matchesGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div class="col-span-full py-16 text-center text-slate-500 glass-card rounded-2xl">
+          <i class="fa-solid fa-spinner fa-spin text-3xl mb-3 text-brand-blue"></i>
+          <p class="text-sm font-semibold">Fetching live match feed from aoneroom upstream...</p>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // =========================================================================
+    // EXACT UPSTREAM ENGINE & NORMALIZATION FROM YOUR lib/sports.js
+    // =========================================================================
+    const API = "https://h5-sport-api.aoneroom.com";
+    const ORIGIN = "https://sportsnow.top";
+    const UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131 Safari/537.36";
+
+    const text = (v) => (v == null ? "" : String(v));
+    const media = (item) => (typeof item === "string" ? item : item?.url || item?.path || "");
+    const number = (v) => (v == null || v === "" || Number.isNaN(Number(v)) ? null : Number(v));
+    const date = (v) => {
+      const n = number(v);
+      return n == null || n <= 0 ? null : new Date(n < 1e12 ? n * 1000 : n).toISOString();
+    };
+
+    function statusOf(event) {
+      const s = String(event.status || "").trim().toLowerCase();
+      if (!s) return "scheduled";
+      if (s.includes("cancel")) return "cancelled";
+      if (s.includes("postpon")) return "postponed";
+      if (s === "matchended" || s === "finished" || s === "closed") return "finished";
+      if (s === "matching" || s === "live" || s === "ongoing") return "live";
+      return "scheduled";
+    }
+
+    function normalizeTeam(team = {}) {
+      const normalized = {
+        id: text(team.id),
+        name: text(team.name),
+        abbreviation: text(team.abbreviation),
+        score: number(team.score),
+      };
+      const logo = media(team.avatar);
+      if (logo) normalized.logo = logo;
+      return normalized;
+    }
+
+    function normalizeLiveStream(path, status) {
+      const url = text(path);
+      const valid = status === "live" && /^https:\/\/[^/]+\/.*\.(?:m3u8|mpd)(?:\?|$)/i.test(url);
+      if (!valid) return { available: false, url: null, format: null, authorized: false };
+      return {
+        available: true,
+        url,
+        format: /\.mpd(?:\?|$)/i.test(url) ? "dash" : "hls",
+        authorized: true,
+      };
+    }
+
+    function normalizeEvent(event = {}) {
+      const status = statusOf(event);
+      return {
+        id: text(event.id || event.matchId || event.liveDeviceId),
+        sport: text(event.type).toLowerCase() || "football",
+        league: text(event.league) || "General League",
+        teams: {
+          home: normalizeTeam(event.team1),
+          away: normalizeTeam(event.team2),
+        },
+        status,
+        startTime: date(event.startTime || event.arrangedTime),
+        liveStream: normalizeLiveStream(event.playPath, status),
+        timeDesc: text(event.timeDesc) || null,
+      };
+    }
+
+    // Core sportsFetch execution with Proxy Fallback for Browser CORS support
+    async function sportsFetch(path) {
+      const rawTarget = `${API}${path}`;
+      const proxyTarget = `https://corsproxy.io/?${encodeURIComponent(rawTarget)}`;
+
+      // Attempt 1: Direct fetch
+      try {
+        const res = await fetch(rawTarget, {
+          headers: {
+            "Accept": "application/json",
+            "User-Agent": UA,
+            "Origin": ORIGIN,
+            "Referer": `${ORIGIN}/live`,
+            "X-Client-Info": '{"timezone":"Africa/Lagos"}',
+          }
+        });
+        if (res.ok) return await res.json();
+      } catch (e) {
+        console.warn("Direct CORS restricted in browser, switching to CORS Relay Bridge...");
+      }
+
+      // Attempt 2: Proxy Relay fetch
+      const proxyRes = await fetch(proxyTarget);
+      if (!proxyRes.ok) throw new Error(`Upstream returned ${proxyRes.status}`);
+      const body = await proxyRes.json();
+      return body?.data ?? body;
+    }
+
+    // =========================================================================
+    // RENDER LOGIC
+    // =========================================================================
+    let liveEvents = [];
+
+    async function fetchRealUpstreamData() {
+      const grid = document.getElementById('matchesGrid');
+      const indicator = document.getElementById('statusIndicator');
+      const title = document.getElementById('statusTitle');
+      const sub = document.getElementById('statusSub');
+
+      title.innerText = "Querying Upstream BFF...";
+      sub.innerText = "Endpoint: /wefeed-h5api-bff/live/match-list-v5?leagueId=0";
+      indicator.className = "w-3 h-3 rounded-full bg-amber-400 animate-pulse";
+
+      try {
+        const res = await sportsFetch('/wefeed-h5api-bff/live/match-list-v5?leagueId=0');
+        const list = res.list || res.data?.list || [];
+
+        liveEvents = list.map(normalizeEvent);
+
+        title.innerText = "Connected to Live Upstream Feed";
+        sub.innerText = "Data normalized via sports.js architecture";
+        indicator.className = "w-3 h-3 rounded-full bg-emerald-400";
+        document.getElementById('matchCountText').innerText = `${liveEvents.length} Matches Found`;
+
+        renderMatches(liveEvents);
+        renderTicker(liveEvents);
+      } catch (err) {
+        console.error("Upstream Fetch Error:", err);
+        title.innerText = "Upstream Connection Restricted";
+        sub.innerText = err.message || "Failed to reach aoneroom API";
+        indicator.className = "w-3 h-3 rounded-full bg-red-500";
+
+        grid.innerHTML = `
+          <div class="col-span-full py-12 text-center text-slate-400 glass-card rounded-2xl space-y-3">
+            <i class="fa-solid fa-triangle-exclamation text-3xl text-amber-400"></i>
+            <p class="text-sm font-semibold text-white">Upstream Gateway Error</p>
+            <p class="text-xs max-w-md mx-auto text-slate-400">${err.message}</p>
+          </div>`;
+      }
+    }
+
+    function renderMatches(items) {
+      const grid = document.getElementById('matchesGrid');
+      if (items.length === 0) {
+        grid.innerHTML = `
+          <div class="col-span-full py-12 text-center text-slate-500 glass-card rounded-2xl">
+            <p class="text-sm font-semibold">No active fixtures returned from upstream right now.</p>
+          </div>`;
+        return;
+      }
+
+      grid.innerHTML = items.map(m => `
+        <div class="glass-card rounded-2xl p-5 hover:border-brand-blue/50 transition flex flex-col justify-between space-y-4 shadow-lg">
+          <div class="flex items-center justify-between text-xs">
+            <span class="text-slate-400 font-medium truncate">${m.league}</span>
+            <span class="bg-slate-800 text-slate-300 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">${m.timeDesc || m.status}</span>
+          </div>
+
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center space-x-3">
+                <img src="${m.teams.home.logo || 'https://placehold.co/40x40/151c2e/ffffff?text=TEAM'}" onerror="this.src='https://placehold.co/40x40/151c2e/ffffff?text=TEAM'" class="w-8 h-8 rounded-full object-cover border border-slate-700">
+                <span class="font-bold text-sm text-white">${m.teams.home.name}</span>
+              </div>
+              <span class="text-lg font-extrabold font-mono text-emerald-400">${m.teams.home.score ?? 0}</span>
+            </div>
+
+            <div class="flex items-center justify-between">
+              <div class="flex items-center space-x-3">
+                <img src="${m.teams.away.logo || 'https://placehold.co/40x40/151c2e/ffffff?text=TEAM'}" onerror="this.src='https://placehold.co/40x40/151c2e/ffffff?text=TEAM'" class="w-8 h-8 rounded-full object-cover border border-slate-700">
+                <span class="font-bold text-sm text-white">${m.teams.away.name}</span>
+              </div>
+              <span class="text-lg font-extrabold font-mono text-emerald-400">${m.teams.away.score ?? 0}</span>
+            </div>
+          </div>
+
+          <div class="pt-2 border-t border-brand-border flex items-center justify-between text-xs text-slate-400">
+            <span>Sport: ${m.sport.toUpperCase()}</span>
+            ${m.liveStream.available ? `<span class="text-purple-400 font-bold">HLS Stream Active</span>` : `<span>No Stream Path</span>`}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function renderTicker(items) {
+      const ticker = document.getElementById('liveTicker');
+      if (items.length === 0) return;
+      ticker.innerHTML = items.slice(0, 5).map(m => `
+        <div class="flex items-center space-x-2 bg-slate-900 border border-brand-border px-3 py-1 rounded-lg">
+          <span class="font-semibold text-slate-300">${m.teams.home.name}</span>
+          <span class="font-extrabold text-emerald-400 font-mono">${m.teams.home.score ?? 0} - ${m.teams.away.score ?? 0}</span>
+          <span class="font-semibold text-slate-300">${m.teams.away.name}</span>
+        </div>
+      `).join('');
+    }
+
+    // Auto-fetch on page load
+    window.onload = fetchRealUpstreamData;
+  </script>
+</body>
+</html>
