@@ -1,0 +1,1089 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sports Pulse - Live Sports & Stream Portal</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              dark: '#0b0f19',
+              card: '#151c2e',
+              border: '#232d45',
+              accent: '#10b981', // emerald accent
+              blue: '#3b82f6',   // electric blue
+              live: '#ef4444',   // live red
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background-color: #0b0f19;
+      color: #f3f4f6;
+      font-family: 'Inter', sans-serif;
+    }
+    .glass-card {
+      background: rgba(21, 28, 46, 0.75);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      height: 6px;
+      width: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #0b0f19;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #232d45;
+      border-radius: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: #3b82f6;
+    }
+    @keyframes pulse-fast {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+    .animate-pulse-fast {
+      animation: pulse-fast 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col custom-scrollbar selection:bg-brand-blue selection:text-white">
+
+  <div class="bg-slate-950 border-b border-brand-border text-xs py-2 px-4 overflow-x-auto whitespace-nowrap custom-scrollbar flex items-center space-x-6">
+    <div class="flex items-center space-x-2 text-brand-live font-bold tracking-wider uppercase shrink-0">
+      <span class="w-2.5 h-2.5 rounded-full bg-brand-live animate-pulse-fast"></span>
+      <span>Live Scoreboard</span>
+    </div>
+    <div id="liveTicker" class="flex items-center space-x-6 text-slate-300 shrink-0">
+    </div>
+  </div>
+
+  <header class="bg-slate-900/90 backdrop-blur-md border-b border-brand-border sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
+      
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-blue-600 flex items-center justify-center text-white shadow-lg shadow-emerald-500/20">
+          <i class="fa-solid fa-bolt text-lg"></i>
+        </div>
+        <div>
+          <span class="font-extrabold text-lg sm:text-xl tracking-tight bg-gradient-to-r from-white via-slate-200 to-emerald-400 bg-clip-text text-transparent">SPORTS<span class="text-brand-accent">PULSE</span></span>
+          <span class="hidden sm:inline-block text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 ml-2">v2.5 h5api</span>
+        </div>
+      </div>
+
+      <nav class="hidden md:flex items-center space-x-1 lg:space-x-2 text-sm font-medium">
+        <button onclick="switchTab('live')" id="tab-live" class="px-3 py-2 rounded-lg text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 flex items-center space-x-2 transition">
+          <i class="fa-solid fa-satellite-dish text-xs"></i>
+          <span>Live Matches</span>
+        </button>
+        <button onclick="switchTab('schedule')" id="tab-schedule" class="px-3 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition flex items-center space-x-2">
+          <i class="fa-regular fa-calendar-days text-xs"></i>
+          <span>Schedule & Scores</span>
+        </button>
+        <button onclick="switchTab('replays')" id="tab-replays" class="px-3 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition flex items-center space-x-2">
+          <i class="fa-solid fa-circle-play text-xs"></i>
+          <span>Highlights</span>
+        </button>
+        <button onclick="switchTab('leagues')" id="tab-leagues" class="px-3 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition flex items-center space-x-2">
+          <i class="fa-solid fa-trophy text-xs"></i>
+          <span>Leagues</span>
+        </button>
+        <button onclick="switchTab('inspector')" id="tab-inspector" class="px-3 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition flex items-center space-x-2">
+          <i class="fa-solid fa-code text-xs"></i>
+          <span>API Inspector</span>
+        </button>
+      </nav>
+
+      <div class="flex items-center space-x-3">
+        <div class="flex items-center bg-slate-950 p-1 rounded-xl border border-brand-border">
+          <button id="mode-simulated" onclick="toggleDataMode('simulated')" class="px-2.5 py-1 text-xs font-semibold rounded-lg bg-brand-blue text-white shadow-sm transition">
+            Simulated
+          </button>
+          <button id="mode-upstream" onclick="toggleDataMode('upstream')" class="px-2.5 py-1 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition flex items-center space-x-1">
+            <span>Upstream</span>
+            <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+          </button>
+        </div>
+
+        <button onclick="toggleMobileNav()" class="md:hidden p-2 text-slate-400 hover:text-white">
+          <i class="fa-solid fa-bars text-lg"></i>
+        </button>
+      </div>
+
+    </div>
+
+    <div id="mobileNav" class="hidden md:hidden border-t border-brand-border bg-slate-900 px-4 py-3 space-y-2 text-sm">
+      <button onclick="switchTab('live'); toggleMobileNav();" class="w-full text-left px-3 py-2 rounded-lg text-emerald-400 bg-emerald-500/10">Live Matches</button>
+      <button onclick="switchTab('schedule'); toggleMobileNav();" class="w-full text-left px-3 py-2 rounded-lg text-slate-300 hover:bg-slate-800">Schedule & Scores</button>
+      <button onclick="switchTab('replays'); toggleMobileNav();" class="w-full text-left px-3 py-2 rounded-lg text-slate-300 hover:bg-slate-800">Highlights & Replays</button>
+      <button onclick="switchTab('leagues'); toggleMobileNav();" class="w-full text-left px-3 py-2 rounded-lg text-slate-300 hover:bg-slate-800">Leagues & Standings</button>
+      <button onclick="switchTab('inspector'); toggleMobileNav();" class="w-full text-left px-3 py-2 rounded-lg text-slate-300 hover:bg-slate-800">API Inspector</button>
+    </div>
+  </header>
+
+  <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+    <div id="upstreamNotice" class="hidden bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 text-xs text-amber-200 flex items-start space-x-3">
+      <i class="fa-solid fa-triangle-exclamation text-amber-400 text-base shrink-0 mt-0.5"></i>
+      <div>
+        <span class="font-bold block text-amber-300 mb-0.5">Upstream CORS Direct Mode Activated</span>
+        Requests are executed directly against <code class="bg-amber-950/80 px-1.5 py-0.5 rounded text-amber-200">https://h5-sport-api.aoneroom.com</code> with required headers. If browser blocks due to strict CORS without an edge proxy, fallback telemetry will be displayed in test suites.
+      </div>
+    </div>
+
+    <div id="filterBar" class="flex flex-col md:flex-row items-center justify-between gap-4 bg-slate-900/60 p-3 rounded-2xl border border-brand-border">
+      <!-- Sport Pills -->
+      <div class="flex items-center space-x-2 overflow-x-auto w-full md:w-auto custom-scrollbar pb-1 md:pb-0">
+        <button onclick="filterSport('all')" class="sport-btn active px-3 py-1.5 rounded-xl text-xs font-semibold bg-brand-blue text-white transition shrink-0" data-sport="all">
+          All Sports
+        </button>
+        <button onclick="filterSport('football')" class="sport-btn px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition shrink-0 flex items-center space-x-1.5" data-sport="football">
+          <i class="fa-solid fa-futbol text-[11px]"></i>
+          <span>Football</span>
+        </button>
+        <button onclick="filterSport('basketball')" class="sport-btn px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition shrink-0 flex items-center space-x-1.5" data-sport="basketball">
+          <i class="fa-solid fa-basketball-ball text-[11px]"></i>
+          <span>Basketball</span>
+        </button>
+        <button onclick="filterSport('cricket')" class="sport-btn px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition shrink-0 flex items-center space-x-1.5" data-sport="cricket">
+          <i class="fa-solid fa-baseball text-[11px]"></i>
+          <span>Cricket</span>
+        </button>
+        <button onclick="filterSport('tennis')" class="sport-btn px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition shrink-0 flex items-center space-x-1.5" data-sport="tennis">
+          <i class="fa-solid fa-table-tennis-paddle-ball text-[11px]"></i>
+          <span>Tennis</span>
+        </button>
+        <button onclick="filterSport('mma')" class="sport-btn px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition shrink-0 flex items-center space-x-1.5" data-sport="mma">
+          <i class="fa-solid fa-hand-fist text-[11px]"></i>
+          <span>MMA/Boxing</span>
+        </button>
+      </div>
+
+      <div class="relative w-full md:w-64 shrink-0">
+        <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+        <input type="text" id="searchInput" oninput="handleSearch(this.value)" placeholder="Search team, league, ID..." class="w-full bg-slate-950 border border-brand-border rounded-xl pl-9 pr-4 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-brand-blue transition">
+      </div>
+    </div>
+
+    <div id="view-live" class="view-content space-y-6">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center space-x-2">
+          <h2 class="text-xl font-bold tracking-tight text-white">Live Matches</h2>
+          <span id="liveCountBadge" class="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-bold px-2 py-0.5 rounded-full">0 Active</span>
+        </div>
+        <button onclick="reloadCurrentData()" class="text-xs text-slate-400 hover:text-white flex items-center space-x-1 bg-slate-900 border border-brand-border px-3 py-1.5 rounded-xl">
+          <i class="fa-solid fa-rotate text-[10px]"></i>
+          <span>Refresh</span>
+        </button>
+      </div>
+
+      <div id="liveMatchesGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+      </div>
+    </div>
+
+    <div id="view-schedule" class="view-content hidden space-y-6">
+      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <h2 class="text-xl font-bold tracking-tight text-white">Matches & Results</h2>
+          <p class="text-xs text-slate-400">Scheduled fixtures, completed events, and historical scorecards</p>
+        </div>
+        <div class="flex items-center bg-slate-950 p-1 rounded-xl border border-brand-border text-xs font-medium">
+          <button onclick="filterScheduleStatus('all')" class="sched-status-btn active px-3 py-1 rounded-lg text-white bg-brand-blue" data-status="all">All</button>
+          <button onclick="filterScheduleStatus('scheduled')" class="sched-status-btn px-3 py-1 rounded-lg text-slate-400 hover:text-white" data-status="scheduled">Upcoming</button>
+          <button onclick="filterScheduleStatus('finished')" class="sched-status-btn px-3 py-1 rounded-lg text-slate-400 hover:text-white" data-status="finished">Finished</button>
+        </div>
+      </div>
+
+      <div id="scheduleMatchesGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+      </div>
+    </div>
+
+    <div id="view-replays" class="view-content hidden space-y-6">
+      <div>
+        <h2 class="text-xl font-bold tracking-tight text-white">Video Highlights & Replays</h2>
+        <p class="text-xs text-slate-400">Access full match replays, cut clips, and video highlights from recent events</p>
+      </div>
+
+      <div id="replaysGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+      </div>
+    </div>
+
+    <div id="view-leagues" class="view-content hidden space-y-6">
+      <div>
+        <h2 class="text-xl font-bold tracking-tight text-white">Supported Leagues & Categories</h2>
+        <p class="text-xs text-slate-400">Active leagues tracked by upstream sports BFF endpoints</p>
+      </div>
+
+      <div id="leaguesGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+      </div>
+    </div>
+
+    <div id="view-inspector" class="view-content hidden space-y-6">
+      <div class="glass-card rounded-2xl p-6 border border-brand-border space-y-6">
+        <div>
+          <h2 class="text-xl font-bold text-white flex items-center space-x-2">
+            <i class="fa-solid fa-code text-brand-blue"></i>
+            <span>Architecture & API Probe Engine</span>
+          </h2>
+          <p class="text-xs text-slate-400 mt-1">
+            Testing raw endpoints based on the <code class="text-emerald-400 bg-slate-950 px-1 rounded">lib/sports.js</code> client implementation.
+          </p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div class="space-y-3">
+            <label class="text-xs font-semibold text-slate-300 block">Select Upstream Endpoint</label>
+            <select id="probePathSelect" class="w-full bg-slate-950 border border-brand-border rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-brand-blue">
+              <option value="/wefeed-h5api-bff/live/match-list-v5?leagueId=0">/wefeed-h5api-bff/live/match-list-v5?leagueId=0</option>
+              <option value="/wefeed-h5api-bff/live/league-tab">/wefeed-h5api-bff/live/league-tab</option>
+              <option value="/wefeed-h5api-bff/live/activity/config">/wefeed-h5api-bff/live/activity/config</option>
+              <option value="/wefeed-h5api-bff/news/tags">/wefeed-h5api-bff/news/tags</option>
+              <option value="/wefeed-h5api-bff/live/match-detail?id=987123">/wefeed-h5api-bff/live/match-detail?id=987123</option>
+            </select>
+            
+            <button onclick="executeApiProbe()" class="w-full bg-brand-blue hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-xl text-xs transition flex items-center justify-center space-x-2 shadow-lg shadow-blue-500/20">
+              <i class="fa-solid fa-paper-plane"></i>
+              <span>Dispatch Request (sportsFetch)</span>
+            </button>
+
+            <div class="bg-slate-950 p-4 rounded-xl border border-brand-border text-xs space-y-2">
+              <span class="font-bold text-slate-300 block">System Configuration:</span>
+              <div class="text-[11px] text-slate-400 font-mono space-y-1">
+                <div>API: <span class="text-emerald-400">https://h5-sport-api.aoneroom.com</span></div>
+                <div>Origin: <span class="text-blue-400">https://sportsnow.top</span></div>
+                <div>X-Client-Info: <span class="text-purple-400">{"timezone":"Africa/Lagos"}</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="lg:col-span-2 flex flex-col h-96 bg-slate-950 border border-brand-border rounded-xl overflow-hidden font-mono text-xs">
+            <div class="bg-slate-900 px-4 py-2 border-b border-brand-border flex items-center justify-between text-slate-400 text-[11px]">
+              <span class="flex items-center space-x-2">
+                <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                <span>Response Console Buffer</span>
+              </span>
+              <button onclick="clearProbeConsole()" class="hover:text-white">Clear Log</button>
+            </div>
+            <pre id="probeConsole" class="p-4 flex-grow overflow-auto text-emerald-400 custom-scrollbar whitespace-pre-wrap">Ready to execute requests...</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <div id="matchModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+    <div class="glass-card max-w-3xl w-full max-h-[90vh] rounded-2xl overflow-hidden flex flex-col border border-brand-border shadow-2xl">
+      <div class="bg-slate-900 px-6 py-4 border-b border-brand-border flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+          <span id="modalSportTag" class="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-brand-blue/20 text-brand-blue border border-brand-blue/30">FOOTBALL</span>
+          <span id="modalLeagueName" class="text-xs font-semibold text-slate-300">UEFA Champions League</span>
+        </div>
+        <button onclick="closeMatchModal()" class="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div id="modalBody" class="p-6 overflow-y-auto space-y-6 custom-scrollbar text-xs">
+      </div>
+    </div>
+  </div>
+
+  <div id="playerModal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+    <div class="glass-card max-w-4xl w-full rounded-2xl overflow-hidden border border-brand-border shadow-2xl flex flex-col">
+      <div class="bg-slate-900 px-6 py-3 border-b border-brand-border flex items-center justify-between">
+        <div class="flex items-center space-x-2">
+          <span class="w-2.5 h-2.5 rounded-full bg-brand-live animate-pulse-fast"></span>
+          <span id="playerTitle" class="font-bold text-sm text-white">Live Stream Playback</span>
+          <span id="playerFormatBadge" class="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">HLS</span>
+        </div>
+        <button onclick="closePlayerModal()" class="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="relative bg-black aspect-video flex items-center justify-center overflow-hidden">
+        <video id="videoElement" controls class="w-full h-full object-contain" autoplay></video>
+        <div id="playerFallbackNotice" class="hidden absolute inset-0 bg-slate-950/90 flex flex-col items-center justify-center p-6 text-center space-y-3">
+          <i class="fa-solid fa-circle-exclamation text-amber-400 text-3xl"></i>
+          <p class="text-sm font-semibold text-slate-200">Live HLS Stream Target Offline or Access Controlled</p>
+          <p class="text-xs text-slate-400 max-w-md">Raw upstream link: <span id="playerRawUrl" class="text-blue-400 font-mono break-all block mt-1"></span></p>
+          <button onclick="copyPlayerUrl()" class="px-4 py-2 bg-brand-blue hover:bg-blue-600 text-white rounded-xl text-xs font-semibold transition">Copy Upstream Stream URL</button>
+        </div>
+      </div>
+
+      <div class="p-4 bg-slate-900 border-t border-brand-border flex items-center justify-between text-xs text-slate-400">
+        <div class="flex items-center space-x-2">
+          <i class="fa-solid fa-shield-halved text-emerald-400"></i>
+          <span>Direct Raw Edge Media Pipeline (Zero Proxy Proxying)</span>
+        </div>
+        <button onclick="copyPlayerUrl()" class="hover:text-white flex items-center space-x-1">
+          <i class="fa-regular fa-copy"></i>
+          <span>Copy URL</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // =========================================================================
+    // 1. EMBEDDED NORMAIZATION ENGINE & UPSTREAM CLIENT (sports.js)
+    // =========================================================================
+
+    const API = "https://h5-sport-api.aoneroom.com";
+    const ORIGIN = "https://sportsnow.top";
+    const UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131 Safari/537.36";
+
+    class SportsUpstreamError extends Error {
+      constructor(message, status = 502) {
+        super(message);
+        this.status = status;
+      }
+    }
+
+    const text = (value) => (value == null ? "" : String(value));
+    const media = (item) => (typeof item === "string" ? item : item?.url || item?.path || "");
+    const number = (value) => (value == null || value === "" || Number.isNaN(Number(value)) ? null : Number(value));
+    const date = (value) => {
+      const n = number(value);
+      return n == null || n <= 0 ? null : new Date(n < 1e12 ? n * 1000 : n).toISOString();
+    };
+
+    function statusOf(event) {
+      const s = String(event.status || "").trim().toLowerCase();
+      if (!s) return "scheduled";
+      if (s.includes("cancel")) return "cancelled";
+      if (s.includes("postpon")) return "postponed";
+      if (s === "matchended" || s === "finished" || s === "closed") return "finished";
+      if (s === "matching" || s === "live" || s === "ongoing") return "live";
+      return "scheduled";
+    }
+
+    function normalizeTeam(team = {}) {
+      const normalized = {
+        id: text(team.id),
+        name: text(team.name),
+        abbreviation: text(team.abbreviation),
+        score: number(team.score),
+      };
+      const logo = media(team.avatar);
+      if (logo) normalized.logo = logo;
+      return normalized;
+    }
+
+    function normalizeLiveStream(path, status) {
+      const url = text(path);
+      const valid = status === "live" && /^https:\/\/[^/]+\/.*\.(?:m3u8|mpd)(?:\?|$)/i.test(url);
+      if (!valid) return { available: false, url: null, format: null, authorized: false };
+      return {
+        available: true,
+        url,
+        format: /\.mpd(?:\?|$)/i.test(url) ? "dash" : "hls",
+        authorized: true,
+      };
+    }
+
+    function normalizeMedia(items) {
+      return Array.isArray(items)
+        ? items
+            .map((item, index) => {
+              const raw = media(item);
+              if (!raw) return null;
+              return {
+                id: text(item.id) || `media-${index}`,
+                title: text(item.title) || null,
+                url: raw,
+                cover: media(item.cover) || null,
+                durationSeconds: number(item.duration),
+                createdAt: date(item.createTime),
+              };
+            })
+            .filter(Boolean)
+        : [];
+    }
+
+    function normalizeTeamMatchInfo(block) {
+      if (!block || typeof block !== "object") return null;
+      return {
+        score: number(block.score),
+        periods: Array.isArray(block.scores) ? block.scores.map(number) : [],
+        runsScored: text(block.crtRunsScored) || null,
+        wicketsLost: text(block.crtWicketsLost) || null,
+        overs: text(block.crtOvers) || null,
+        oversExtraBalls: text(block.crtOversExtraBalls) || null,
+      };
+    }
+
+    function normalizeEvent(event = {}) {
+      const status = statusOf(event);
+      const highlightSource = [];
+      const seenHighlightIds = new Set();
+      for (const item of [...(event.highlights || []), ...(event.cuts || [])]) {
+        const id = text(item?.id);
+        if (!id || seenHighlightIds.has(id)) continue;
+        seenHighlightIds.add(id);
+        highlightSource.push(item);
+      }
+
+      const normalized = {
+        id: text(event.id || event.matchId || event.liveDeviceId),
+        sport: text(event.type).toLowerCase() || "football",
+        league: text(event.league) || "General League",
+        leagueId: text(event.leagueId) || "0",
+        round: text(event.matchRound) || null,
+        season: text(event.season) || null,
+        teams: {
+          home: normalizeTeam(event.team1),
+          away: normalizeTeam(event.team2),
+        },
+        status,
+        startTime: date(event.startTime || event.arrangedTime),
+        endTime: status === "finished" ? date(event.endTime) : null,
+        liveStream: normalizeLiveStream(event.playPath, status),
+        streams: [],
+        replay: normalizeMedia(event.replay),
+        highlights: normalizeMedia(highlightSource),
+        leagueLogo: media(event.leagueItem?.avatar) || null,
+        statusLive: text(event.statusLive) || null,
+        timeDesc: text(event.timeDesc) || null,
+        teamMatchInfo: (() => {
+          const home = normalizeTeamMatchInfo(event.teamMatchInfo1);
+          const away = normalizeTeamMatchInfo(event.teamMatchInfo2);
+          return home || away ? { home, away } : null;
+        })(),
+      };
+
+      const result = text(event.matchResult);
+      const detailId = text(event.liveDeviceId);
+      if (result) normalized.result = result;
+      if (detailId) normalized.detailId = detailId;
+
+      return normalized;
+    }
+
+    async function sportsFetch(path, { timeoutMs = 12000 } = {}) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const response = await fetch(`${API}${path}`, {
+          headers: {
+            Accept: "application/json",
+            "User-Agent": UA,
+            Origin: ORIGIN,
+            Referer: `${ORIGIN}/live`,
+            "X-Client-Info": '{"timezone":"Africa/Lagos"}',
+          },
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          throw new SportsUpstreamError(`Sports upstream returned ${response.status}`, response.status >= 500 ? 502 : response.status);
+        }
+        const body = await response.json();
+        if (body?.code && body.code !== 0) {
+          throw new SportsUpstreamError(body.message || "Sports upstream rejected request", 502);
+        }
+        return body?.data ?? body;
+      } catch (error) {
+        if (error.name === "AbortError") throw new SportsUpstreamError("Sports upstream timed out", 504);
+        if (error instanceof SportsUpstreamError) throw error;
+        throw new SportsUpstreamError(error.message || "Sports upstream unavailable");
+      } finally {
+        clearTimeout(timeout);
+      }
+    }
+
+    // =========================================================================
+    // 2. MOCK TELEMETRY DATA (Modeled on aoneroom H5 API response schema)
+    // =========================================================================
+
+    const MOCK_RAW_EVENTS = [
+      {
+        id: "987123",
+        type: "football",
+        league: "UEFA Champions League",
+        leagueId: "101",
+        status: "live",
+        statusLive: "2nd Half",
+        timeDesc: "68'",
+        startTime: Date.now() - 3600000,
+        playPath: "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+        team1: { id: "f1", name: "Real Madrid", abbreviation: "RMA", score: 2, avatar: "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=100&auto=format&fit=crop&q=80" },
+        team2: { id: "f2", name: "Manchester City", abbreviation: "MCI", score: 1, avatar: "https://images.unsplash.com/photo-1522778119026-d647f0596c20?w=100&auto=format&fit=crop&q=80" },
+        teamMatchInfo1: { score: 2, scores: [1, 1] },
+        teamMatchInfo2: { score: 1, scores: [0, 1] },
+        highlights: [
+          { id: "h1", title: "Goal! Bellingham header in 24th min", url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4", cover: "https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=500&auto=format&fit=crop&q=80", duration: 45 },
+          { id: "h2", title: "De Bruyne long range equalizer", url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4", cover: "https://images.unsplash.com/photo-1517927033932-b3d18e61fb3a?w=500&auto=format&fit=crop&q=80", duration: 32 }
+        ]
+      },
+      {
+        id: "987124",
+        type: "cricket",
+        league: "ICC T20 World Cup",
+        leagueId: "102",
+        status: "live",
+        statusLive: "Innings 2",
+        timeDesc: "16.4 Overs",
+        startTime: Date.now() - 7200000,
+        playPath: "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+        team1: { id: "c1", name: "India", abbreviation: "IND", score: 185, avatar: "https://images.unsplash.com/photo-1531415074968-036ba1b575da?w=100&auto=format&fit=crop&q=80" },
+        team2: { id: "c2", name: "Australia", abbreviation: "AUS", score: 142, avatar: "https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=100&auto=format&fit=crop&q=80" },
+        teamMatchInfo1: { score: 185, crtRunsScored: "185", crtWicketsLost: "4", crtOvers: "20.0" },
+        teamMatchInfo2: { score: 142, crtRunsScored: "142", crtWicketsLost: "6", crtOvers: "16.4", crtOversExtraBalls: "2" },
+        highlights: [
+          { id: "h3", title: "Virat Kohli 82* Masterclass Off 53 Balls", url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4", cover: "https://images.unsplash.com/photo-1531415074968-036ba1b575da?w=500&auto=format&fit=crop&q=80", duration: 120 }
+        ]
+      },
+      {
+        id: "987125",
+        type: "basketball",
+        league: "NBA Regular Season",
+        leagueId: "103",
+        status: "live",
+        statusLive: "Q4",
+        timeDesc: "03:12",
+        startTime: Date.now() - 5400000,
+        playPath: "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+        team1: { id: "b1", name: "LA Lakers", abbreviation: "LAL", score: 108, avatar: "https://images.unsplash.com/photo-1546519638-68e109498ffc?w=100&auto=format&fit=crop&q=80" },
+        team2: { id: "b2", name: "Golden State Warriors", abbreviation: "GSW", score: 105, avatar: "https://images.unsplash.com/photo-1519766304817-4f37bda74a29?w=100&auto=format&fit=crop&q=80" },
+        teamMatchInfo1: { score: 108, scores: [28, 30, 24, 26] },
+        teamMatchInfo2: { score: 105, scores: [25, 29, 28, 23] },
+        highlights: []
+      },
+      {
+        id: "987126",
+        type: "football",
+        league: "English Premier League",
+        leagueId: "104",
+        status: "scheduled",
+        statusLive: "Scheduled",
+        timeDesc: "Tomorrow 20:00",
+        startTime: Date.now() + 86400000,
+        playPath: "",
+        team1: { id: "f3", name: "Arsenal", abbreviation: "ARS", score: 0, avatar: "https://images.unsplash.com/photo-1522778119026-d647f0596c20?w=100&auto=format&fit=crop&q=80" },
+        team2: { id: "f4", name: "Chelsea", abbreviation: "CHE", score: 0, avatar: "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=100&auto=format&fit=crop&q=80" }
+      },
+      {
+        id: "987127",
+        type: "mma",
+        league: "UFC 300 Main Card",
+        leagueId: "105",
+        status: "finished",
+        statusLive: "Finished",
+        matchResult: "KO / TKO - Round 2",
+        startTime: Date.now() - 172800000,
+        playPath: "",
+        team1: { id: "m1", name: "Alex Pereira", abbreviation: "PER", score: 1, avatar: "https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=100&auto=format&fit=crop&q=80" },
+        team2: { id: "m2", name: "Jamahal Hill", abbreviation: "HIL", score: 0, avatar: "https://images.unsplash.com/photo-1549719386-74dfcbf7dbed?w=100&auto=format&fit=crop&q=80" },
+        replay: [
+          { id: "r1", title: "Full Main Event Fight Replay", url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyplays.mp4", cover: "https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=500&auto=format&fit=crop&q=80", duration: 1800 }
+        ]
+      }
+    ];
+
+    // =========================================================================
+    // 3. APPLICATION STATE & DASHBOARD LOGIC
+    // =========================================================================
+
+    let currentDataMode = 'simulated'; // 'simulated' or 'upstream'
+    let currentTab = 'live';
+    let currentSportFilter = 'all';
+    let currentScheduleStatus = 'all';
+    let searchQuery = '';
+    let normalizedEvents = [];
+    let hlsInstance = null;
+
+    window.onload = function() {
+      loadData();
+      setInterval(updateTickerScores, 5000); // Live score ticker animation simulation
+    };
+
+    function toggleDataMode(mode) {
+      currentDataMode = mode;
+      document.getElementById('mode-simulated').className = mode === 'simulated' 
+        ? "px-2.5 py-1 text-xs font-semibold rounded-lg bg-brand-blue text-white shadow-sm transition"
+        : "px-2.5 py-1 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition";
+      
+      document.getElementById('mode-upstream').className = mode === 'upstream'
+        ? "px-2.5 py-1 text-xs font-semibold rounded-lg bg-amber-500 text-slate-950 font-bold shadow-sm transition"
+        : "px-2.5 py-1 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition";
+
+      document.getElementById('upstreamNotice').classList.toggle('hidden', mode !== 'upstream');
+      loadData();
+    }
+
+    async function loadData() {
+      if (currentDataMode === 'simulated') {
+        normalizedEvents = MOCK_RAW_EVENTS.map(normalizeEvent);
+        renderDashboard();
+      } else {
+        try {
+          const raw = await sportsFetch('/wefeed-h5api-bff/live/match-list-v5?leagueId=0');
+          const list = raw.list || [];
+          normalizedEvents = list.length > 0 ? list.map(normalizeEvent) : MOCK_RAW_EVENTS.map(normalizeEvent);
+        } catch (err) {
+          console.warn('Upstream call failed, falling back to schema telemetry:', err);
+          normalizedEvents = MOCK_RAW_EVENTS.map(normalizeEvent);
+        }
+        renderDashboard();
+      }
+    }
+
+    function reloadCurrentData() {
+      loadData();
+    }
+
+    function renderDashboard() {
+      renderTicker();
+      renderLiveMatches();
+      renderScheduleMatches();
+      renderReplays();
+      renderLeagues();
+    }
+
+    function renderTicker() {
+      const liveItems = normalizedEvents.filter(e => e.status === 'live');
+      const tickerContainer = document.getElementById('liveTicker');
+      
+      if (liveItems.length === 0) {
+        tickerContainer.innerHTML = `<span class="text-slate-500 italic">No live fixtures currently broadcasting</span>`;
+        return;
+      }
+
+      tickerContainer.innerHTML = liveItems.map(item => `
+        <div onclick="openMatchModal('${item.id}')" class="cursor-pointer hover:text-white flex items-center space-x-2 bg-slate-900/80 border border-brand-border px-3 py-1 rounded-lg">
+          <span class="font-semibold text-slate-300">${item.teams.home.name}</span>
+          <span class="font-extrabold text-emerald-400 font-mono">${item.teams.home.score ?? 0} - ${item.teams.away.score ?? 0}</span>
+          <span class="font-semibold text-slate-300">${item.teams.away.name}</span>
+          <span class="text-[10px] text-brand-live font-bold uppercase ml-1">${item.timeDesc || 'LIVE'}</span>
+        </div>
+      `).join('');
+    }
+
+    function renderLiveMatches() {
+      const container = document.getElementById('liveMatchesGrid');
+      let items = normalizedEvents.filter(e => e.status === 'live');
+
+      if (currentSportFilter !== 'all') {
+        items = items.filter(e => e.sport === currentSportFilter);
+      }
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        items = items.filter(e => 
+          e.teams.home.name.toLowerCase().includes(q) ||
+          e.teams.away.name.toLowerCase().includes(q) ||
+          e.league.toLowerCase().includes(q)
+        );
+      }
+
+      document.getElementById('liveCountBadge').innerText = `${items.length} Active`;
+
+      if (items.length === 0) {
+        container.innerHTML = `
+          <div class="col-span-full py-12 text-center text-slate-500 glass-card rounded-2xl">
+            <i class="fa-solid fa-satellite text-3xl mb-2 text-slate-600"></i>
+            <p class="text-sm font-semibold">No live streams found matching filter criteria</p>
+          </div>`;
+        return;
+      }
+
+      container.innerHTML = items.map(match => createMatchCardHTML(match)).join('');
+    }
+
+    function renderScheduleMatches() {
+      const container = document.getElementById('scheduleMatchesGrid');
+      let items = normalizedEvents.filter(e => e.status !== 'live');
+
+      if (currentScheduleStatus !== 'all') {
+        items = items.filter(e => e.status === currentScheduleStatus);
+      }
+      if (currentSportFilter !== 'all') {
+        items = items.filter(e => e.sport === currentSportFilter);
+      }
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        items = items.filter(e => 
+          e.teams.home.name.toLowerCase().includes(q) ||
+          e.teams.away.name.toLowerCase().includes(q)
+        );
+      }
+
+      if (items.length === 0) {
+        container.innerHTML = `
+          <div class="col-span-full py-12 text-center text-slate-500 glass-card rounded-2xl">
+            <i class="fa-regular fa-calendar-xmark text-3xl mb-2 text-slate-600"></i>
+            <p class="text-sm font-semibold">No scheduled or finished fixtures</p>
+          </div>`;
+        return;
+      }
+
+      container.innerHTML = items.map(match => createMatchCardHTML(match)).join('');
+    }
+
+    function createMatchCardHTML(match) {
+      const isLive = match.status === 'live';
+      const liveBadge = isLive 
+        ? `<span class="inline-flex items-center space-x-1.5 bg-brand-live/20 text-brand-live border border-brand-live/30 text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase"><span class="w-1.5 h-1.5 rounded-full bg-brand-live animate-pulse-fast"></span><span>${match.timeDesc || 'LIVE'}</span></span>`
+        : `<span class="bg-slate-800 text-slate-400 text-[10px] font-semibold px-2 py-0.5 rounded-full uppercase">${match.status}</span>`;
+
+      const streamBadge = match.liveStream.available
+        ? `<span class="bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[10px] font-bold px-2 py-0.5 rounded flex items-center space-x-1"><i class="fa-solid fa-play text-[8px]"></i><span>${match.liveStream.format.toUpperCase()} STREAM</span></span>`
+        : '';
+
+      return `
+        <div class="glass-card rounded-2xl p-5 hover:border-brand-blue/50 transition duration-200 flex flex-col justify-between space-y-4 shadow-lg group">
+          <div class="flex items-center justify-between text-xs">
+            <span class="text-slate-400 font-medium truncate max-w-[160px]">${match.league}</span>
+            ${liveBadge}
+          </div>
+
+          <div class="space-y-3 cursor-pointer" onclick="openMatchModal('${match.id}')">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center space-x-3">
+                <img src="${match.teams.home.logo || 'https://placehold.co/40x40/151c2e/ffffff?text=TEAM'}" onerror="this.src='https://placehold.co/40x40/151c2e/ffffff?text=TEAM'" class="w-8 h-8 rounded-full object-cover border border-slate-700">
+                <span class="font-bold text-sm text-slate-100 group-hover:text-brand-blue transition">${match.teams.home.name}</span>
+              </div>
+              <span class="text-lg font-extrabold font-mono text-white">${match.teams.home.score ?? '-'}</span>
+            </div>
+
+            <div class="flex items-center justify-between">
+              <div class="flex items-center space-x-3">
+                <img src="${match.teams.away.logo || 'https://placehold.co/40x40/151c2e/ffffff?text=TEAM'}" onerror="this.src='https://placehold.co/40x40/151c2e/ffffff?text=TEAM'" class="w-8 h-8 rounded-full object-cover border border-slate-700">
+                <span class="font-bold text-sm text-slate-100 group-hover:text-brand-blue transition">${match.teams.away.name}</span>
+              </div>
+              <span class="text-lg font-extrabold font-mono text-white">${match.teams.away.score ?? '-'}</span>
+            </div>
+          </div>
+
+          <!-- Cricket or Details Summary Bar -->
+          ${match.teamMatchInfo?.home?.runsScored ? `
+            <div class="bg-slate-950/80 p-2 rounded-xl text-[11px] text-slate-300 flex justify-between font-mono">
+              <span>Runs: ${match.teamMatchInfo.home.runsScored}/${match.teamMatchInfo.home.wicketsLost || 0}</span>
+              <span>Overs: ${match.teamMatchInfo.home.overs || '0.0'}</span>
+            </div>
+          ` : ''}
+
+          <div class="pt-2 border-t border-brand-border flex items-center justify-between">
+            ${streamBadge || '<span class="text-[10px] text-slate-500">No Stream Streamed</span>'}
+            
+            <div class="flex items-center space-x-2">
+              ${match.liveStream.available ? `
+                <button onclick="openPlayerModal('${match.liveStream.url}', '${match.teams.home.name} vs ${match.teams.away.name}', '${match.liveStream.format}')" class="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold rounded-xl text-xs transition shadow-md shadow-emerald-500/20 flex items-center space-x-1">
+                  <i class="fa-solid fa-play text-[10px]"></i>
+                  <span>Watch Stream</span>
+                </button>
+              ` : ''}
+              <button onclick="openMatchModal('${match.id}')" class="p-1.5 text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-xl transition">
+                <i class="fa-solid fa-chevron-right text-xs"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderReplays() {
+      const container = document.getElementById('replaysGrid');
+      const allMedia = [];
+
+      normalizedEvents.forEach(e => {
+        [...(e.highlights || []), ...(e.replay || [])].forEach(m => {
+          allMedia.push({ ...m, eventTitle: `${e.teams.home.name} vs ${e.teams.away.name}` });
+        });
+      });
+
+      if (allMedia.length === 0) {
+        container.innerHTML = `
+          <div class="col-span-full py-12 text-center text-slate-500 glass-card rounded-2xl">
+            <i class="fa-solid fa-film text-3xl mb-2 text-slate-600"></i>
+            <p class="text-sm font-semibold">No media replays currently stored</p>
+          </div>`;
+        return;
+      }
+
+      container.innerHTML = allMedia.map(m => `
+        <div class="glass-card rounded-2xl overflow-hidden border border-brand-border group hover:border-brand-blue/50 transition">
+          <div class="relative aspect-video bg-slate-950 overflow-hidden cursor-pointer" onclick="openPlayerModal('${m.url}', '${m.title}', 'mp4')">
+            <img src="${m.cover || 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=500&auto=format&fit=crop&q=80'}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300">
+            <div class="absolute inset-0 bg-slate-950/40 group-hover:bg-slate-950/20 transition flex items-center justify-center">
+              <div class="w-12 h-12 rounded-full bg-brand-blue/90 text-white flex items-center justify-center shadow-lg group-hover:scale-110 transition">
+                <i class="fa-solid fa-play text-sm ml-0.5"></i>
+              </div>
+            </div>
+            ${m.durationSeconds ? `<span class="absolute bottom-2 right-2 bg-slate-950/80 text-white text-[10px] font-mono px-1.5 py-0.5 rounded">${Math.floor(m.durationSeconds/60)}:${(m.durationSeconds%60).toString().padStart(2,'0')}</span>` : ''}
+          </div>
+          <div class="p-4 space-y-1">
+            <span class="text-[10px] text-brand-blue font-bold uppercase">${m.eventTitle}</span>
+            <h4 class="font-bold text-xs text-white line-clamp-1">${m.title}</h4>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function renderLeagues() {
+      const container = document.getElementById('leaguesGrid');
+      const leagues = [
+        { name: "UEFA Champions League", icon: "fa-futbol", sport: "Football" },
+        { name: "Premier League", icon: "fa-futbol", sport: "Football" },
+        { name: "ICC T20 World Cup", icon: "fa-baseball", sport: "Cricket" },
+        { name: "NBA Basketball", icon: "fa-basketball-ball", sport: "Basketball" },
+        { name: "UFC Championship", icon: "fa-hand-fist", sport: "MMA" },
+        { name: "ATP Tour Tennis", icon: "fa-table-tennis-paddle-ball", sport: "Tennis" },
+      ];
+
+      container.innerHTML = leagues.map(l => `
+        <div class="glass-card rounded-2xl p-4 text-center border border-brand-border space-y-2 hover:border-brand-accent transition">
+          <div class="w-10 h-10 rounded-xl bg-slate-800 text-brand-accent flex items-center justify-center mx-auto">
+            <i class="fa-solid ${l.icon} text-lg"></i>
+          </div>
+          <h4 class="font-bold text-xs text-white line-clamp-1">${l.name}</h4>
+          <span class="text-[10px] text-slate-400 block">${l.sport}</span>
+        </div>
+      `).join('');
+    }
+
+    function openMatchModal(matchId) {
+      const match = normalizedEvents.find(e => e.id === matchId);
+      if (!match) return;
+
+      document.getElementById('modalSportTag').innerText = match.sport || 'SPORTS';
+      document.getElementById('modalLeagueName').innerText = match.league || 'Tournament';
+
+      const body = document.getElementById('modalBody');
+      body.innerHTML = `
+        <div class="bg-slate-950 p-6 rounded-2xl border border-brand-border flex items-center justify-between text-center">
+          <!-- Home -->
+          <div class="flex flex-col items-center space-y-2 w-1/3">
+            <img src="${match.teams.home.logo || 'https://placehold.co/60x60'}" class="w-14 h-14 rounded-full object-cover border border-slate-700">
+            <span class="font-bold text-sm text-white">${match.teams.home.name}</span>
+          </div>
+
+          <div class="flex flex-col items-center space-y-1">
+            <span class="text-3xl font-extrabold font-mono text-emerald-400">${match.teams.home.score ?? 0} : ${match.teams.away.score ?? 0}</span>
+            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">${match.statusLive || match.status}</span>
+          </div>
+
+          <div class="flex flex-col items-center space-y-2 w-1/3">
+            <img src="${match.teams.away.logo || 'https://placehold.co/60x60'}" class="w-14 h-14 rounded-full object-cover border border-slate-700">
+            <span class="font-bold text-sm text-white">${match.teams.away.name}</span>
+          </div>
+        </div>
+
+        ${match.teamMatchInfo?.home?.runsScored || match.teamMatchInfo?.away?.runsScored ? `
+          <div class="bg-slate-900 p-4 rounded-xl border border-brand-border space-y-2">
+            <span class="font-bold text-xs text-slate-300 block">Cricket In-Depth Match Matrix</span>
+            <div class="grid grid-cols-2 gap-4 text-xs font-mono">
+              <div class="bg-slate-950 p-3 rounded-lg border border-slate-800">
+                <span class="text-slate-400 block">${match.teams.home.name}</span>
+                <div class="text-emerald-400 font-bold text-sm mt-1">${match.teamMatchInfo.home?.runsScored || 0}/${match.teamMatchInfo.home?.wicketsLost || 0}</div>
+                <div class="text-[10px] text-slate-500">Overs: ${match.teamMatchInfo.home?.overs || '0.0'}</div>
+              </div>
+              <div class="bg-slate-950 p-3 rounded-lg border border-slate-800">
+                <span class="text-slate-400 block">${match.teams.away.name}</span>
+                <div class="text-emerald-400 font-bold text-sm mt-1">${match.teamMatchInfo.away?.runsScored || 0}/${match.teamMatchInfo.away?.wicketsLost || 0}</div>
+                <div class="text-[10px] text-slate-500">Overs: ${match.teamMatchInfo.away?.overs || '0.0'}</div>
+              </div>
+            </div>
+          </div>
+        ` : ''}
+
+        <div class="bg-slate-900 p-4 rounded-xl border border-brand-border space-y-2">
+          <span class="font-bold text-xs text-slate-300 block">playPath Raw Upstream HLS Endpoint</span>
+          <div class="flex items-center space-x-2">
+            <input type="text" readonly value="${match.liveStream.url || 'No playPath provided by upstream'}" class="flex-grow bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 font-mono text-[11px] text-emerald-400 focus:outline-none">
+            ${match.liveStream.url ? `
+              <button onclick="copyToClipboard('${match.liveStream.url}')" class="px-3 py-1.5 bg-brand-blue hover:bg-blue-600 text-white rounded-lg text-xs font-semibold">Copy</button>
+            ` : ''}
+          </div>
+        </div>
+
+        <div class="space-y-2">
+          <span class="font-bold text-xs text-slate-300 block">Normalized Output (sports.js output object)</span>
+          <pre class="bg-slate-950 p-4 rounded-xl border border-brand-border font-mono text-[10px] text-slate-300 overflow-x-auto max-h-48 custom-scrollbar">${JSON.stringify(match, null, 2)}</pre>
+        </div>
+      `;
+
+      document.getElementById('matchModal').classList.remove('hidden');
+    }
+
+    function closeMatchModal() {
+      document.getElementById('matchModal').classList.add('hidden');
+    }
+
+    // Video Player Engine
+    function openPlayerModal(streamUrl, title, format) {
+      document.getElementById('playerTitle').innerText = title;
+      document.getElementById('playerFormatBadge').innerText = (format || 'hls').toUpperCase();
+      document.getElementById('playerRawUrl').innerText = streamUrl;
+
+      const video = document.getElementById('videoElement');
+      const fallback = document.getElementById('playerFallbackNotice');
+      fallback.classList.add('hidden');
+
+      if (hlsInstance) {
+        hlsInstance.destroy();
+        hlsInstance = null;
+      }
+
+      if (streamUrl.endsWith('.m3u8') || format === 'hls') {
+        if (Hls.isSupported()) {
+          hlsInstance = new Hls();
+          hlsInstance.loadSource(streamUrl);
+          hlsInstance.attachMedia(video);
+          hlsInstance.on(Hls.Events.MANIFEST_PARSED, function () {
+            video.play().catch(() => {});
+          });
+          hlsInstance.on(Hls.Events.ERROR, function () {
+            fallback.classList.remove('hidden');
+          });
+        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+          video.src = streamUrl;
+          video.play().catch(() => {});
+        } else {
+          fallback.classList.remove('hidden');
+        }
+      } else {
+        video.src = streamUrl;
+        video.play().catch(() => {
+          fallback.classList.remove('hidden');
+        });
+      }
+
+      document.getElementById('playerModal').classList.remove('hidden');
+    }
+
+    function closePlayerModal() {
+      const video = document.getElementById('videoElement');
+      video.pause();
+      video.src = '';
+      if (hlsInstance) {
+        hlsInstance.destroy();
+        hlsInstance = null;
+      }
+      document.getElementById('playerModal').classList.add('hidden');
+    }
+
+    function copyPlayerUrl() {
+      const url = document.getElementById('playerRawUrl').innerText;
+      copyToClipboard(url);
+    }
+
+    function copyToClipboard(textToCopy) {
+      const tempInput = document.createElement("input");
+      tempInput.value = textToCopy;
+      document.body.appendChild(tempInput);
+      tempInput.select();
+      document.execCommand("copy");
+      document.body.removeChild(tempInput);
+      alert("Stream URL copied to clipboard!");
+    }
+
+    // API Inspector Engine
+    async function executeApiProbe() {
+      const path = document.getElementById('probePathSelect').value;
+      const consoleElem = document.getElementById('probeConsole');
+      
+      consoleElem.innerText = `[${new Date().toLocaleTimeString()}] Fetching: ${API}${path}...\nHeaders:\n  User-Agent: ${UA}\n  Origin: ${ORIGIN}\n  X-Client-Info: {"timezone":"Africa/Lagos"}\n`;
+
+      try {
+        const res = await sportsFetch(path);
+        consoleElem.innerText += `\n[Status 200 OK]\nResponse Body:\n` + JSON.stringify(res, null, 2);
+      } catch (err) {
+        consoleElem.innerText += `\n[Upstream Error]\nStatus: ${err.status || 502}\nMessage: ${err.message}\nNote: Browser CORS policy may prevent direct calls without an active gateway proxy. Switch to Simulated mode for full schema evaluation.`;
+      }
+    }
+
+    function clearProbeConsole() {
+      document.getElementById('probeConsole').innerText = 'Ready to execute requests...';
+    }
+
+    // Navigation & Filters
+    function switchTab(tab) {
+      currentTab = tab;
+      document.querySelectorAll('.view-content').forEach(el => el.classList.add('hidden'));
+      document.getElementById(`view-${tab}`).classList.remove('hidden');
+
+      document.querySelectorAll('nav button').forEach(btn => {
+        btn.className = "px-3 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition flex items-center space-x-2";
+      });
+
+      const activeBtn = document.getElementById(`tab-${tab}`);
+      if (activeBtn) {
+        activeBtn.className = "px-3 py-2 rounded-lg text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 flex items-center space-x-2 transition";
+      }
+    }
+
+    function filterSport(sport) {
+      currentSportFilter = sport;
+      document.querySelectorAll('.sport-btn').forEach(btn => {
+        btn.classList.remove('bg-brand-blue', 'text-white');
+        btn.classList.add('bg-slate-800', 'text-slate-300');
+      });
+
+      const active = document.querySelector(`.sport-btn[data-sport="${sport}"]`);
+      if (active) {
+        active.classList.remove('bg-slate-800', 'text-slate-300');
+        active.classList.add('bg-brand-blue', 'text-white');
+      }
+
+      renderLiveMatches();
+      renderScheduleMatches();
+    }
+
+    function filterScheduleStatus(status) {
+      currentScheduleStatus = status;
+      document.querySelectorAll('.sched-status-btn').forEach(btn => {
+        btn.classList.remove('bg-brand-blue', 'text-white');
+        btn.classList.add('text-slate-400');
+      });
+
+      const active = document.querySelector(`.sched-status-btn[data-status="${status}"]`);
+      if (active) {
+        active.classList.remove('text-slate-400');
+        active.classList.add('bg-brand-blue', 'text-white');
+      }
+
+      renderScheduleMatches();
+    }
+
+    function handleSearch(val) {
+      searchQuery = val;
+      renderLiveMatches();
+      renderScheduleMatches();
+    }
+
+    function toggleMobileNav() {
+      document.getElementById('mobileNav').classList.toggle('hidden');
+    }
+
+    function updateTickerScores() {
+      // Small simulated live score update tick
+      const liveItem = normalizedEvents.find(e => e.status === 'live');
+      if (liveItem && currentDataMode === 'simulated') {
+        if (Math.random() > 0.6) {
+          liveItem.teams.home.score = (liveItem.teams.home.score || 0) + (Math.random() > 0.5 ? 1 : 0);
+          renderTicker();
+          if (currentTab === 'live') renderLiveMatches();
+        }
+      }
+    }
+  </script>
+</body>
+</html>
